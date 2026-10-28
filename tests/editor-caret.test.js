@@ -160,3 +160,56 @@ test('two press/release clicks still open the editor at the clicked word', t => 
   pointer(f, editor, 'pointerdown');
   assert.equal(f.document.querySelector('.inline-editor'), editor);
 });
+
+for (const style of ['full', 'half', 'first-letter']) {
+  test(`practice double-click edits a ${style} redaction at the clicked character and Escape saves without leaving practice`, t => {
+    const body = 'First repeated line\n\nSecond repeated line with answers';
+    const f = mount(t, body, style);
+    f.document.getElementById('toggleEditor').click();
+    const preview = f.document.getElementById('preview');
+    preview.scrollTop = 120;
+    const row = preview.querySelectorAll('.practice-line')[2], word = row.querySelector('.word-hidden:last-child');
+    for (let i = 0; i < 2; i++) { pointer(f, word, 'pointerdown'); pointer(f, word, 'pointerup'); }
+    const editor = f.click(2, row.textContent.indexOf('answers') + 5, word);
+    assert.ok(editor);
+    assert.equal(editor.selectionStart, body.indexOf('answers') + 5);
+    assert.equal(f.document.body.classList.contains('practice-mode'), true);
+    assert.equal(f.document.getElementById('autoScroll').hidden, true);
+    editor.setRangeText('EDIT');
+    editor.dispatchEvent(new f.dom.window.Event('input'));
+    editor.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    const expected = body.replace('answers', 'answeEDITrs');
+    assert.equal(f.document.querySelector('.inline-editor'), null);
+    assert.equal(f.document.body.classList.contains('practice-mode'), true);
+    assert.equal(f.dom.window.lineByLineApp.getState().body, expected);
+    assert.equal(f.dom.window.localStorage.getItem('line-by-line-memorize:script'), expected);
+    assert.equal(preview.scrollTop, 120);
+    assert.equal(f.document.getElementById('omit').value, '2');
+    assert.equal(preview.querySelectorAll('.revealed').length, 0);
+    f.document.dispatchEvent(new f.dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(f.document.body.classList.contains('practice-mode'), false);
+  });
+}
+
+test('practice editing pauses auto-scroll, preserves typing shortcuts, and saves on exit', t => {
+  const f = mount(t, 'First line\nSecond line with answers');
+  f.document.getElementById('toggleEditor').click();
+  const autoScroll = f.document.getElementById('autoScroll');
+  Object.defineProperty(f.document.getElementById('preview'), 'scrollHeight', { value: 2000 });
+  f.dom.window.dispatchEvent(new f.dom.window.Event('resize'));
+  autoScroll.click();
+  assert.equal(autoScroll.getAttribute('aria-pressed'), 'true');
+  const editor = f.click(1, 2);
+  assert.equal(autoScroll.getAttribute('aria-pressed'), 'false');
+  for (const key of ['ArrowUp', 'ArrowRight', ' ', '+']) {
+    const event = new f.dom.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ctrlKey: key === '+' });
+    editor.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, false);
+  }
+  editor.setRangeText('EDIT');
+  f.document.getElementById('exitPractice').click();
+  assert.equal(f.document.querySelector('.inline-editor'), null);
+  assert.equal(f.document.body.classList.contains('practice-mode'), false);
+  assert.equal(f.dom.window.lineByLineApp.getState().body, 'First line\nSeEDITcond line with answers');
+  assert.equal(f.document.getElementById('omit').value, '2');
+});
