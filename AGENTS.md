@@ -2,6 +2,8 @@
 
 This is the LineByLine project's application repository. Read `PROJECT_CONTEXT.md` before continuing work from another chat.
 
+- Work directly on `main`. Create another branch only when the user explicitly asks for one.
+
 - Live site: https://linebyline.online/
 - GitHub: https://github.com/sshadmand/line-by-line-memorize
 - `index.html` is the canonical page. Optional account and cloud library logic is in `cloud-scripts.js`, `cloud-client.js`, and `cloud.css`. Read `docs/CLOUD_SETUP.md` before changing authentication or deployment.
