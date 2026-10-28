@@ -8,7 +8,7 @@ The dedicated Free project is `eoulcmagatntdubqbbpi` (LineByLine). Its public UR
 
 ## Production feature gate
 
-`enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
+`enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. A separate `cloud-bootstrap.js` checks the flag before importing any account code; versioned imports avoid pre-gate browser caches. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
 
 Localhost, `127.0.0.1`, and IPv6 loopback enable the account feature for development. Keep the production flag off while backend work continues; this allows normal production pushes. Set it to `true` only when deliberately releasing the verified account feature.
 

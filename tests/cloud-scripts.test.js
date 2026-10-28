@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-import { setupCloudScripts, startCloudScripts, cloudEnabledForLocation } from '../cloud-scripts.js';
+import { setupCloudScripts } from '../cloud-scripts.js';
+import { startCloudScripts, cloudEnabledForLocation } from '../cloud-bootstrap.js';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const config = { url: 'https://example.supabase.co', publishableKey: 'public-test-key', providers: { google: true, email: true } };
@@ -79,7 +80,7 @@ async function mount(t, { backend = new Backend(), account = null, storage = {},
   const client = backend.makeClient(account), app = dom.window.lineByLineApp;
   let clientInitializations = 0;
   const options = { app, doc: dom.window.document, win: dom.window, config: configured ? { ...config, providers } : {}, createClient: () => { clientInitializations++; return client; } };
-  const setup = production ? startCloudScripts(options) : setupCloudScripts(options);
+  const setup = production ? await startCloudScripts(options) : setupCloudScripts(options);
   await setup?.ready;
   const $ = id => dom.window.document.getElementById(id);
   const input = (id, value) => { $(id).value = value; $(id).dispatchEvent(new dom.window.Event('input', { bubbles: true })); };

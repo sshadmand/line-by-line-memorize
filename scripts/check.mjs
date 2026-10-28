@@ -7,7 +7,7 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
   if (match[1].trim()) new Script(match[1], { filename: 'index.html:inline' });
 }
-for (const file of ['cloud-config.js', 'cloud-client.js', 'cloud-scripts.js']) {
+for (const file of ['cloud-config.js', 'cloud-bootstrap.js', 'cloud-client.js', 'cloud-scripts.js']) {
   execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
 }
 console.log('Application JavaScript syntax passed.');

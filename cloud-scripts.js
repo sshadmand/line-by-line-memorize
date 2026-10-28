@@ -1,19 +1,9 @@
-import { cloudConfig } from './cloud-config.js';
+import { cloudConfig } from './cloud-config.js?v=cloud-gate-1';
 import { createScriptStore } from './cloud-client.js';
 
 const PREFIX = 'line-by-line-memorize:';
 const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30 });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-
-export function cloudEnabledForLocation(config, location) {
-  return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname)
-    || config.enabledInProduction === true;
-}
-
-export function startCloudScripts({ win = window, doc = win.document, config = cloudConfig, createClient } = {}) {
-  if (!win.lineByLineApp || !cloudEnabledForLocation(config, win.location)) return null;
-  return setupCloudScripts({ app: win.lineByLineApp, doc, win, config, createClient });
-}
 
 export function setupCloudScripts({ app, doc = document, win = window, config = cloudConfig, createClient }) {
   const $ = id => doc.getElementById(id);
@@ -350,5 +340,3 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   })();
   return { ready };
 }
-
-if (typeof window !== 'undefined') startCloudScripts();
