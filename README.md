@@ -2,6 +2,8 @@
 
 A tiny, self-contained presentation practice page. Paste your text with line breaks, then redact trailing words from each line one step at a time as you memorize.
 
+Your script is saved in this browser’s local storage as you edit and restored when you reopen the page.
+
 ## Use it
 
 Open `index.html` in a browser. There is no build step or dependency.
