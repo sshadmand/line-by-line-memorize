@@ -9,6 +9,6 @@ Open `index.html` in a browser. There is no build step or dependency.
 - Adjust the range or use **+ 1** / **− 1** to redact or reveal trailing words on each line.
 - At the final step, only the first letter of each line’s first word remains as a hint.
 - Hold **Reveal answers** to peek at the redacted words.
-- Use **Practice mode** to show only the script and redactions. The arrow keys change the redaction and smoothly scroll through the lines; press **Esc** to exit.
+- Use **Practice mode** to show only the script and redactions. Hold anywhere on the script to reveal the answers temporarily. The arrow keys change the redaction and smoothly scroll through the lines; press **Esc** to exit.
 
 GitHub Pages can host this page directly from the repository.
