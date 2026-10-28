@@ -21,6 +21,8 @@ Users can continue practicing without an account. **Log in** (beside GitHub) off
 
 See [cloud setup](docs/CLOUD_SETUP.md) for the Supabase migration, authentication configuration, local testing, and release checks. Production hosting remains static GitHub Pages. Node dependencies are only needed to run development checks or regenerate the bundled SDK.
 
+Cloud login is currently hidden in production and enabled on localhost for review. The production feature gate also keeps account code and session handling from loading, so normal site updates can continue independently.
+
 
 ## Contributing
 

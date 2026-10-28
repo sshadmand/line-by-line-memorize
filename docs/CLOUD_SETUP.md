@@ -4,7 +4,13 @@ The static app remains usable without login. Guests keep their script and practi
 
 ## Connected project
 
-The dedicated Free project is `eoulcmagatntdubqbbpi` (LineByLine). Its public URL and publishable key are in `cloud-config.js`. The script schema has been applied and live SQL checks confirmed RLS, four owner policies, no anonymous table access, and no client write access to owner/revision fields. Authentication's Site URL is `https://linebyline.online/`; its exact production callback and `http://127.0.0.1:8089/` are allowlisted. Google provider activation and real-user login verification must be completed before release.
+The dedicated Free project is `eoulcmagatntdubqbbpi` (LineByLine). Its public URL and publishable key are in `cloud-config.js`. The script schema is applied, and Google sign-in is enabled with its secret stored only in Supabase. The dedicated Google project is `atlantean-axon-513021-c4` (LineByLine); the web client is named **LineByLine Web**. It uses only `openid`, `email`, and `profile`.
+
+Authentication's Site URL is `https://linebyline.online/`. Exact return URLs are allowlisted for production, `http://127.0.0.1:8089/`, and `http://localhost:8089/`. Google's OAuth callback is `https://eoulcmagatntdubqbbpi.supabase.co/auth/v1/callback`.
+
+Live verification on October 28, 2026 passed Google login, two separate named saves, opening a saved script with exact blank lines and restored redaction settings, and loading the library from an independent browser-storage origin. Live SQL checks confirmed RLS, four owner policies, no anonymous table access, and no client write access to owner/revision fields. `scripts/verify-live-rls.sql` also passed ownership and stale-revision checks on the hosted database; its fixtures were rolled back. Two small verification scripts remain in the setup account's library.
+
+Google's audience remains External/Testing while the website feature stays hidden. Basic identity-only sign-in is exempt from Google's test-user allowlist and seven-day consent expiration, as explained in [Google's audience documentation](https://support.google.com/cloud/answer/15549945?hl=en). Adding other scopes would require revisiting that configuration. A physical second device and iPad interaction have not been used for this cloud verification.
 
 ## Production feature gate
 
@@ -18,7 +24,7 @@ Localhost, `127.0.0.1`, and IPv6 loopback enable the account feature for develop
 2. Run `supabase/migrations/202610280001_scripts.sql` in the project's SQL editor. This creates the script table, owner-only row policies, restricted column permissions, and revision tracking. Do not disable row-level security.
 3. Under Authentication → URL Configuration, set the Site URL to `https://linebyline.online/`. Allow `https://linebyline.online/` as a redirect URL. Add explicit localhost URLs only when testing Google login locally.
 4. Enable Google under Authentication → Sign In / Providers. Create a Google OAuth web client with the exact Supabase callback URL shown there (normally `https://<project-ref>.supabase.co/auth/v1/callback`). Put the Google client secret in Supabase, never in this repository. Use a Google consent configuration that permits the intended audience.
-5. Enable email login and configure custom SMTP for public users. Supabase's default email service is restricted to project-team addresses and is unsuitable for public login. The app uses numeric email codes; the Magic Link email template must visibly include `{{ .Token }}`. No password is required. A suitable template is:
+5. To add email-code login later, configure custom SMTP and enable the email provider flag in the app. Supabase's default email service is restricted to project-team addresses and is unsuitable for public login. The app uses numeric email codes; the Magic Link email template must visibly include `{{ .Token }}`. No password is required. A suitable template is:
 
    ```html
    <h2>Your Line by Line login code</h2>
@@ -31,13 +37,14 @@ Localhost, `127.0.0.1`, and IPv6 loopback enable the account feature for develop
 
    ```js
    export const cloudConfig = {
+     enabledInProduction: false,
      url: 'https://<project-ref>.supabase.co',
      publishableKey: 'sb_publishable_...',
-     providers: { google: true, email: true },
+     providers: { google: true, email: false },
    };
    ```
 
-Until real configuration is present, the login modal explains that cloud saving is unavailable and the guest app continues normally. Keep deployment pending until the real configuration and provider verification are complete.
+Without real configuration, the development login modal explains that cloud saving is unavailable and guest practice continues normally. Normal updates can continue deploying while the production feature gate is off.
 
 ## Validation before release
 
@@ -46,7 +53,7 @@ Until real configuration is present, the login modal explains that cloud saving 
 - `node tests/preview-server.mjs` starts a disposable local backend on port 8090 for testing the real bundled Supabase client without sending email or accessing external accounts. Use `demo@example.test` and any numeric code of 6–10 digits. This server is a local QA fixture, not a production backend or evidence of successful production authentication.
 - Against the real Supabase project, verify Google sign-in and email-code sign-in, create at least two scripts, open them in a separate browser/device, and confirm that a different account cannot read or modify them.
 - Check sign-out restores the guest draft; edit a script on two devices and confirm a stale save offers **Save a copy** instead of replacing newer cloud text.
-- Push the completed change to `main` only once real authentication and persistence are verified. GitHub Pages continues to serve the repository root; no frontend build or hosting migration is needed.
+- Work directly on `main`. The account feature may be pushed while `enabledInProduction` is false. Deliberately enabling it is a separate release step after real authentication and persistence checks. GitHub Pages continues to serve the repository root; no frontend build or hosting migration is needed.
 
 ## Implementation details
 

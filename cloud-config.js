@@ -1,6 +1,6 @@
 // Only public browser credentials belong here. Never add a service-role key.
 export const cloudConfig = {
-  // Keep account features off on public hosts until real login is verified.
+  // Keep account features off on public hosts until deliberately released.
   enabledInProduction: false,
   url: 'https://eoulcmagatntdubqbbpi.supabase.co',
   publishableKey: 'sb_publishable_X4ty7pTx1VnjIQ2ZIpQkyg_cKWct2UX',
