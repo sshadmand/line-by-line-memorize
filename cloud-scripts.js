@@ -5,6 +5,16 @@ const PREFIX = 'line-by-line-memorize:';
 const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30 });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+export function cloudEnabledForLocation(config, location) {
+  return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname)
+    || config.enabledInProduction === true;
+}
+
+export function startCloudScripts({ win = window, doc = win.document, config = cloudConfig, createClient } = {}) {
+  if (!win.lineByLineApp || !cloudEnabledForLocation(config, win.location)) return null;
+  return setupCloudScripts({ app: win.lineByLineApp, doc, win, config, createClient });
+}
+
 export function setupCloudScripts({ app, doc = document, win = window, config = cloudConfig, createClient }) {
   const $ = id => doc.getElementById(id);
   const ui = Object.fromEntries([
@@ -20,6 +30,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   let guest = read('guest-draft') || app.getState();
   const restored = read('workspace');
   let dirty = false;
+  ui.accountButton.hidden = false;
 
   function read(key) {
     try { return JSON.parse(win.localStorage.getItem(PREFIX + key)); } catch { return null; }
@@ -250,11 +261,13 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   });
   ui.googleLogin.hidden = !config.providers?.google;
   ui.emailLogin.hidden = !config.providers?.email;
+  const divider = doc.getElementById('authDivider');
+  if (divider) divider.hidden = !config.providers?.google || !config.providers?.email;
   ui.googleLogin.addEventListener('click', async () => {
     if (!client) return;
     persist(); authBusy(true); message(ui.loginMessage, 'Opening Google…');
     try {
-      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: win.location.origin + win.location.pathname } });
+      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: win.location.origin + win.location.pathname, scopes: 'openid email profile' } });
       if (error) throw error;
     } catch (error) { message(ui.loginMessage, humanError(error), true); }
     finally { authBusy(false); }
@@ -338,4 +351,4 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   return { ready };
 }
 
-if (typeof window !== 'undefined' && window.lineByLineApp) setupCloudScripts({ app: window.lineByLineApp });
+if (typeof window !== 'undefined') startCloudScripts();

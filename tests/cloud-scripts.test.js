@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-import { setupCloudScripts } from '../cloud-scripts.js';
+import { setupCloudScripts, startCloudScripts, cloudEnabledForLocation } from '../cloud-scripts.js';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const config = { url: 'https://example.supabase.co', publishableKey: 'public-test-key', providers: { google: true, email: true } };
@@ -63,9 +63,9 @@ class Backend {
   }
 }
 
-async function mount(t, { backend = new Backend(), account = null, storage = {}, configured = true } = {}) {
+async function mount(t, { backend = new Backend(), account = null, storage = {}, configured = true, providers = config.providers, production = false } = {}) {
   const dom = new JSDOM(html, {
-    url: 'https://linebyline.test/', runScripts: 'dangerously', pretendToBeVisual: true,
+    url: production ? 'https://linebyline.online/' : 'https://linebyline.test/', runScripts: 'dangerously', pretendToBeVisual: true,
     beforeParse(win) {
       win.ResizeObserver = class { observe() {} };
       win.HTMLElement.prototype.scrollIntoView = () => {};
@@ -77,14 +77,39 @@ async function mount(t, { backend = new Backend(), account = null, storage = {},
   });
   t.after(() => dom.window.close());
   const client = backend.makeClient(account), app = dom.window.lineByLineApp;
-  const setup = setupCloudScripts({ app, doc: dom.window.document, win: dom.window, config: configured ? config : {}, createClient: () => client });
-  await setup.ready;
+  let clientInitializations = 0;
+  const options = { app, doc: dom.window.document, win: dom.window, config: configured ? { ...config, providers } : {}, createClient: () => { clientInitializations++; return client; } };
+  const setup = production ? startCloudScripts(options) : setupCloudScripts(options);
+  await setup?.ready;
   const $ = id => dom.window.document.getElementById(id);
   const input = (id, value) => { $(id).value = value; $(id).dispatchEvent(new dom.window.Event('input', { bubbles: true })); };
   const click = async id => { $(id).click(); await settle(); };
   const setBody = body => { app.loadState({ ...app.getState(), body }); };
-  return { dom, app, client, backend, $, input, click, setBody };
+  return { dom, app, client, backend, $, input, click, setBody, started: !!setup, clientInitializations };
 }
+
+test('production gate keeps login hidden and never initializes cloud services', async t => {
+  const f = await mount(t, { production: true, account: 'alice', storage: { 'line-by-line-memorize:script': 'Keep my guest script\n\nExactly' } });
+  assert.equal(f.started, false);
+  assert.equal(f.clientInitializations, 0);
+  assert.equal(f.$('accountButton').hidden, true);
+  assert.equal(f.$('cloudTools').hidden, true);
+  assert.equal(f.$('loginDialog').open, false);
+  assert.equal(f.app.getState().body, 'Keep my guest script\n\nExactly');
+  await f.click('toggleEditor');
+  assert.equal(f.dom.window.document.body.classList.contains('practice-mode'), true);
+  await f.click('exitPractice');
+  assert.equal(f.dom.window.localStorage.getItem('line-by-line-memorize:workspace'), null);
+});
+
+test('cloud initialization is available locally and requires explicit enablement on every public host', () => {
+  for (const hostname of ['localhost', '127.0.0.1', '[::1]']) assert.equal(cloudEnabledForLocation({}, { hostname }), true);
+  for (const hostname of ['linebyline.online', 'www.linebyline.online', 'sshadmand.github.io', 'preview.example.com']) {
+    assert.equal(cloudEnabledForLocation({}, { hostname }), false);
+    assert.equal(cloudEnabledForLocation({ enabledInProduction: false }, { hostname }), false);
+    assert.equal(cloudEnabledForLocation({ enabledInProduction: true }, { hostname }), true);
+  }
+});
 
 test('guest practice, exact whitespace, and modal keyboard isolation need no cloud configuration', async t => {
   const f = await mount(t, { configured: false });
@@ -101,6 +126,17 @@ test('guest practice, exact whitespace, and modal keyboard isolation need no clo
   assert.equal(f.dom.window.document.body.classList.contains('practice-mode'), true);
   await f.click('exitPractice');
   assert.equal(f.$('cloudTools').hidden, true);
+});
+
+test('Google-only launch hides email controls and returns OAuth to the current page', async t => {
+  const f = await mount(t, { providers: { google: true, email: false } });
+  await f.click('accountButton');
+  assert.equal(f.$('googleLogin').hidden, false);
+  assert.equal(f.$('emailLogin').hidden, true);
+  assert.equal(f.$('codeLogin').hidden, true);
+  assert.equal(f.$('authDivider').hidden, true);
+  await f.click('googleLogin');
+  assert.deepEqual(f.client.auth.oauth, { provider: 'google', options: { redirectTo: 'https://linebyline.test/', scopes: 'openid email profile' } });
 });
 
 test('email code sign-in preserves the guest draft and provides a separate cloud workspace', async t => {

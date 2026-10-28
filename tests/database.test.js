@@ -37,5 +37,9 @@ test('Postgres enforces private ownership, column permissions, and stale revisio
     assert.equal((await db.query('delete from public.scripts where id=$1 returning id', [row.id])).rows.length, 0);
     await db.exec('reset role; set role anon;');
     await assert.rejects(db.query('select * from public.scripts'), /permission denied/);
+    await db.exec('reset role;');
+    await db.exec(readFileSync(new URL('../scripts/verify-live-rls.sql', import.meta.url), 'utf8'));
+    assert.equal((await db.query('select count(*)::int as count from auth.users')).rows[0].count, 2);
+    assert.equal((await db.query('select count(*)::int as count from public.scripts')).rows[0].count, 1);
   } finally { await db.close(); }
 });

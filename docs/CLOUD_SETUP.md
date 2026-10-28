@@ -1,6 +1,16 @@
 # Optional accounts and cloud scripts
 
-The static app remains usable without login. Guests keep their script and practice settings on the current device. Signed-in users can save named scripts in a private cloud library and open them on other devices. Saving is explicit: local changes are retained until the user chooses **Save to cloud**.
+The static app remains usable without login. Guests keep their script and practice settings on the current device. Signed-in users can save named scripts in a private cloud library and open them on other devices. Saving is explicit: local changes are retained until the user chooses **Save to cloud**. The initial release uses Google login only; email-code login stays disabled until public mail delivery is configured.
+
+## Connected project
+
+The dedicated Free project is `eoulcmagatntdubqbbpi` (LineByLine). Its public URL and publishable key are in `cloud-config.js`. The script schema has been applied and live SQL checks confirmed RLS, four owner policies, no anonymous table access, and no client write access to owner/revision fields. Authentication's Site URL is `https://linebyline.online/`; its exact production callback and `http://127.0.0.1:8089/` are allowlisted. Google provider activation and real-user login verification must be completed before release.
+
+## Production feature gate
+
+`enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
+
+Localhost, `127.0.0.1`, and IPv6 loopback enable the account feature for development. Keep the production flag off while backend work continues; this allows normal production pushes. Set it to `true` only when deliberately releasing the verified account feature.
 
 ## One-time Supabase setup
 
@@ -27,11 +37,11 @@ The static app remains usable without login. Guests keep their script and practi
    };
    ```
 
-Until real configuration is present, the login modal explains that cloud saving is unavailable and the guest app continues normally. Keep the feature branch undeployed until the real configuration and provider verification are complete.
+Until real configuration is present, the login modal explains that cloud saving is unavailable and the guest app continues normally. Keep deployment pending until the real configuration and provider verification are complete.
 
 ## Validation before release
 
-- Use Node 24.15+ and run `npm ci`, `npm run check`, and `npm test`. The tests cover guest operation, account transitions, multiple devices, offline drafts, simultaneous editing, deletion, malicious titles, and Postgres row/column access controls.
+- Use Node 24.15+ and run `npm ci`, `npm run check`, and `npm test`. The tests cover guest operation, Google-only login controls, account transitions, multiple devices, offline drafts, simultaneous editing, deletion, malicious titles, and Postgres row/column access controls.
 - Run `python3 -m http.server 8089 --bind 127.0.0.1` and check the guest view, login modal, practice mode, and script library in a browser.
 - `node tests/preview-server.mjs` starts a disposable local backend on port 8090 for testing the real bundled Supabase client without sending email or accessing external accounts. Use `demo@example.test` and any numeric code of 6–10 digits. This server is a local QA fixture, not a production backend or evidence of successful production authentication.
 - Against the real Supabase project, verify Google sign-in and email-code sign-in, create at least two scripts, open them in a separate browser/device, and confirm that a different account cannot read or modify them.
