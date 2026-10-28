@@ -8,7 +8,7 @@ Your script and current redaction step are saved in this browser’s local stora
 
 Open `index.html` in a browser. There is no build step or dependency.
 
-- Adjust the range or use **+ 1** / **− 1** to redact or reveal trailing words on each line. Double-click the script in the normal view to edit it inline; edits save when you leave the text.
+- Use the range slider to redact or reveal trailing words on each line. Double-click the script in the normal view to edit it inline; edits save when you leave the text.
 - Once all lines are down to their first word, the next step masks about half of that word; the final step leaves its first letter as a hint.
 - Hold **Peak** beside **Practice mode** to peek at the redacted words.
 - Use **Practice mode** to show only the script and redactions. Hold anywhere on the script to reveal the answers temporarily. Use **Auto-scroll** in Practice mode to move down the page hands-free; while it is running, **↑** and **↓** adjust its speed, which is saved for next time. Arrow keys change redaction and scroll through lines; **⌘+** / **⌘−** change redaction (use **Ctrl** on Windows/Linux); press **Esc** or tap **×** to exit.
