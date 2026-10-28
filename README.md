@@ -2,7 +2,7 @@
 
 A tiny, self-contained presentation practice page. Paste your text with line breaks, then redact words from the end of each line one step at a time as you memorize. The first word stays visible until all lines are down to their first word; the next step masks about half of each first word, and the final step keeps only its first letter as a hint.
 
-Your script is saved in this browser’s local storage as you edit and restored when you reopen the page.
+Your script and current redaction step are saved in this browser’s local storage and restored when you reopen the page.
 
 ## Use it
 
