@@ -1,0 +1,2 @@
+# The bundled SDK contains intentional whitespace inside template literals.
+assets/vendor/supabase.js -whitespace linguist-vendored
