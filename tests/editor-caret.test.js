@@ -213,3 +213,83 @@ test('practice editing pauses auto-scroll, preserves typing shortcuts, and saves
   assert.equal(f.dom.window.lineByLineApp.getState().body, 'First line\nSeEDITcond line with answers');
   assert.equal(f.document.getElementById('omit').value, '2');
 });
+
+for (const [style, visible] of [
+  ['full', ['“,”', "'", '—...', '(!)', '「，！」']],
+  ['half', ['“Hel,”', "ca'", 'stop—...', '(aga!)', '「你好，！」']],
+  ['first-letter', ['“H,”', "c'", 's—...', '(a!)', '「你，！」']],
+]) {
+  test(`${style} redaction preserves punctuation and counts hints from word characters`, t => {
+    const words = ['“Hello,”', "can't", 'stop—now...', '(again!)', '「你好，世界！」'];
+    const body = words.join('  \t');
+    const f = mount(t, body, style), slider = f.document.getElementById('omit');
+    slider.value = slider.max;
+    slider.dispatchEvent(new f.dom.window.Event('input'));
+    const preview = f.document.getElementById('preview');
+    assert.equal(preview.textContent, body, 'Source characters and whitespace must remain in order');
+    for (const hidden of preview.querySelectorAll('.word-hidden')) assert.doesNotMatch(hidden.textContent, /\p{P}/u);
+    const shown = preview.cloneNode(true);
+    for (const hidden of shown.querySelectorAll('.word-hidden')) hidden.remove();
+    assert.equal(shown.textContent, visible.join('  \t'));
+    pointer(f, preview, 'pointerdown');
+    assert.equal(preview.querySelectorAll('.revealed').length, preview.querySelectorAll('.word-hidden').length);
+    pointer(f, preview, 'pointerup');
+    assert.equal(preview.querySelector('.revealed'), null);
+  });
+}
+
+test('standalone punctuation stays visible without adding redaction steps', t => {
+  const f = mount(t, 'First — second ... third!'), slider = f.document.getElementById('omit');
+  assert.equal(slider.max, '3');
+  slider.value = '1';
+  slider.dispatchEvent(new f.dom.window.Event('input'));
+  const preview = f.document.getElementById('preview'), shown = preview.cloneNode(true);
+  for (const hidden of shown.querySelectorAll('.word-hidden')) hidden.remove();
+  assert.equal(shown.textContent, 'First — second ... !');
+  assert.equal(preview.querySelector('.word-hidden').textContent, 'third');
+  assert.equal(f.document.getElementById('amount').textContent, '1 word redacted');
+});
+
+test('punctuation-only lines require no redaction and never show a peek button', t => {
+  const f = mount(t, '... — !!!\n“” ()'), slider = f.document.getElementById('omit');
+  assert.equal(slider.max, '0');
+  assert.equal(f.document.querySelector('.word-hidden'), null);
+  assert.equal(f.document.getElementById('reveal').hidden, true);
+  assert.equal(f.document.getElementById('preview').children[0].textContent, '... — !!!');
+});
+
+test('double-clicking preserved punctuation keeps its exact source offset in practice', t => {
+  const body = 'First line\n“can\'t,” stop—now!';
+  const f = mount(t, body);
+  f.document.getElementById('toggleEditor').click();
+  const editor = f.click(1, body.split('\n')[1].indexOf(','));
+  assert.equal(editor.selectionStart, body.indexOf(','));
+  assert.equal(editor.value, body);
+});
+
+test('empty and whitespace-only scripts stay editable with a placeholder and disabled practice', t => {
+  const f = mount(t, '   \n  '), editor = f.document.querySelector('.inline-editor');
+  assert.ok(editor);
+  assert.equal(editor.value, '');
+  assert.equal(editor.placeholder, 'Add your script here to start practicing.');
+  assert.equal(f.document.getElementById('toggleEditor').disabled, true);
+  editor.value = '  \n  ';
+  editor.dispatchEvent(new f.dom.window.Event('input'));
+  editor.blur();
+  assert.equal(editor.value, '');
+  assert.equal(f.dom.window.localStorage.getItem('line-by-line-memorize:script'), '');
+  assert.equal(f.document.getElementById('reveal').disabled, true);
+  editor.value = 'Hello!';
+  editor.dispatchEvent(new f.dom.window.Event('input'));
+  assert.equal(f.document.getElementById('toggleEditor').disabled, false);
+  editor.focus();
+  editor.blur();
+  assert.equal(f.document.getElementById('preview').textContent, 'Hello!');
+});
+
+test('loading another script replaces an empty editor', t => {
+  const f = mount(t, '');
+  f.dom.window.lineByLineApp.loadState({body:'Loaded script!', redaction:0});
+  assert.equal(f.document.querySelector('.inline-editor'), null);
+  assert.equal(f.document.getElementById('preview').textContent, 'Loaded script!');
+});

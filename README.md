@@ -1,6 +1,6 @@
 # Line by Line · Memorize
 
-A tiny, self-contained presentation practice page. Paste your text with line breaks, then redact words from the end of each line one step at a time as you memorize. The first word stays visible until the final step. Choose a redaction style: **Full word** (the default), **Half word** (keep the first half visible, rounded up), or **Keep first letter**. The selected style applies whenever a word is redacted.
+A tiny, self-contained presentation practice page. Paste your text with line breaks, then redact words from the end of each line one step at a time as you memorize. The first word stays visible until the final step. Choose a redaction style: **Full word** (the default), **Half word** (keep the first half visible, rounded up), or **Keep first letter**. The selected style applies whenever a word is redacted. Punctuation always stays visible, including quotes, apostrophes, hyphens, and sentence endings. Half-word and first-letter hints count only non-punctuation characters; standalone punctuation does not count as a word.
 
 Your script, current redaction step, and redaction style are saved in this browser’s local storage and restored when you reopen the page.
 
