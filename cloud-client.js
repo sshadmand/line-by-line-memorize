@@ -1,4 +1,4 @@
-export const SCRIPT_COLUMNS = 'id,title,body,redaction,redaction_style,scroll_speed,version,updated_at';
+export const SCRIPT_COLUMNS = 'id,title,body,redaction,redaction_style,scroll_speed,redaction_lines,version,updated_at';
 
 export function createScriptStore(client, userId) {
   return {
@@ -18,7 +18,7 @@ export function createScriptStore(client, userId) {
     async save(snapshot, active) {
       const fields = {
         title: snapshot.title.trim() || 'Untitled script', body: snapshot.body,
-        redaction: snapshot.redaction, redaction_style: snapshot.redaction_style || 'full', scroll_speed: snapshot.scroll_speed,
+        redaction: snapshot.redaction, redaction_style: snapshot.redaction_style || 'full', scroll_speed: snapshot.scroll_speed, redaction_lines: snapshot.redaction_lines || 'all',
       };
       let query;
       if (active) {

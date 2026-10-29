@@ -202,6 +202,7 @@ test('multiple devices open the same library and stale saves create copies inste
   const backend = new Backend();
   const a = await mount(t, { backend, account: 'alice' });
   a.input('scriptTitle', 'Talk'); a.setBody('Original\n\nExact breaks');
+  a.$('redactionLines').value = 'alternate'; a.$('redactionLines').dispatchEvent(new a.dom.window.Event('change'));
   a.$('redactionStyle').value = 'half'; a.$('redactionStyle').dispatchEvent(new a.dom.window.Event('change'));
   await settle();
   const b = await mount(t, { backend, account: 'alice' });
@@ -209,6 +210,7 @@ test('multiple devices open the same library and stale saves create copies inste
   b.$('libraryList').querySelector('.library-open').click(); await settle();
   assert.equal(b.app.getState().body, 'Original\n\nExact breaks');
   assert.equal(b.app.getState().redaction_style, 'half');
+  assert.equal(b.app.getState().redaction_lines, 'alternate');
   b.setBody('Edited on device B'); await settle();
   a.setBody('Edited on device A'); await settle();
   assert.equal([...backend.rows.values()][0].body, 'Edited on device B');
@@ -366,4 +368,28 @@ test('signing in automatically uploads an edited guest draft', async t => {
   f.setBody('Guest words ready to sync');
   f.client.auth.login('alice'); await settle();
   assert.equal([...f.backend.rows.values()][0].body, 'Guest words ready to sync');
+});
+
+
+test('guest alternating line selection survives a reload', async t => {
+  const f = await mount(t);
+  f.setBody('Cue line\nTarget line');
+  f.$('redactionLines').value = 'alternate'; f.$('redactionLines').dispatchEvent(new f.dom.window.Event('change'));
+  const storage = Object.fromEntries(Object.keys(f.dom.window.localStorage).map(key => [key, f.dom.window.localStorage.getItem(key)]));
+  const reloaded = await mount(t, {storage});
+  assert.equal(reloaded.app.getState().redaction_lines, 'alternate');
+});
+
+test('opening a pre-existing cloud draft defaults to all lines without creating an autosave', async t => {
+  const f = await mount(t, {account: 'alice'});
+  f.input('scriptTitle', 'Existing talk'); f.setBody('Cue\nTarget'); await settle();
+  const version = [...f.backend.rows.values()][0].version;
+  const storage = Object.fromEntries(Object.keys(f.dom.window.localStorage).map(key => [key, f.dom.window.localStorage.getItem(key)]));
+  const key = 'line-by-line-memorize:draft:alice', draft = JSON.parse(storage[key]);
+  delete draft.state.redaction_lines; delete draft.baseline.redaction_lines;
+  storage[key] = JSON.stringify(draft);
+  const reloaded = await mount(t, {backend: f.backend, account: 'alice', storage}); await settle();
+  assert.equal(reloaded.app.getState().redaction_lines, 'all');
+  assert.equal([...f.backend.rows.values()][0].version, version);
+  assert.match(reloaded.$('cloudStatus').textContent, /Saved to your cloud library/);
 });

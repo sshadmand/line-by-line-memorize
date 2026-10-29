@@ -4,7 +4,7 @@ The static app remains usable without login. Guests keep their script and practi
 
 ## Connected project
 
-The dedicated Free project is `eoulcmagatntdubqbbpi` (LineByLine). Its public URL and publishable key are in `cloud-config.js`. The script schema is applied, and Google sign-in is enabled with its secret stored only in Supabase. The dedicated Google project is `atlantean-axon-513021-c4` (LineByLine); the web client is named **LineByLine Web**. It uses only `openid`, `email`, and `profile`.
+The dedicated Free project is `eoulcmagatntdubqbbpi` (LineByLine). Its public URL and publishable key are in `cloud-config.js`. The script schema and `202610280002_redaction_lines.sql` migration are applied, and Google sign-in is enabled with its secret stored only in Supabase. The dedicated Google project is `atlantean-axon-513021-c4` (LineByLine); the web client is named **LineByLine Web**. It uses only `openid`, `email`, and `profile`.
 
 Authentication's Site URL is `https://linebyline.online/`. Exact return URLs are allowlisted for production, `http://127.0.0.1:8089/`, and `http://localhost:8089/`. Google's OAuth callback is `https://eoulcmagatntdubqbbpi.supabase.co/auth/v1/callback`.
 
@@ -14,7 +14,7 @@ Google's audience remains External/Testing; the website's Google-only account fe
 
 ## Production feature gate
 
-The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-inline-title-1` asset URLs so browsers load the current configuration and modules.
+The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-alternate-lines-1` asset URLs so browsers load the current configuration and modules.
 
 `enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. A separate `cloud-bootstrap.js` checks the flag before importing any account code; versioned imports avoid pre-gate browser caches. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
 
@@ -23,7 +23,7 @@ Localhost, `127.0.0.1`, and IPv6 loopback enable the account feature for develop
 ## One-time Supabase setup
 
 1. Create a dedicated Supabase project on the Free plan. The application does not require a paid Supabase plan.
-2. Run `supabase/migrations/202610280001_scripts.sql` in the project's SQL editor. This creates the script table, owner-only row policies, restricted column permissions, and revision tracking. Do not disable row-level security.
+2. Run `supabase/migrations/202610280001_scripts.sql`, then `supabase/migrations/202610280002_redaction_lines.sql` in the project's SQL editor. This creates the script table, owner-only row policies, restricted column permissions, and revision tracking. Do not disable row-level security.
 3. Under Authentication → URL Configuration, set the Site URL to `https://linebyline.online/`. Allow `https://linebyline.online/` as a redirect URL. Add explicit localhost URLs only when testing Google login locally.
 4. Enable Google under Authentication → Sign In / Providers. Create a Google OAuth web client with the exact Supabase callback URL shown there (normally `https://<project-ref>.supabase.co/auth/v1/callback`). Put the Google client secret in Supabase, never in this repository. Use a Google consent configuration that permits the intended audience.
 5. To add email-code login later, configure custom SMTP and enable the email provider flag in the app. Supabase's default email service is restricted to project-team addresses and is unsuitable for public login. The app uses numeric email codes; the Magic Link email template must visibly include `{{ .Token }}`. No password is required. A suitable template is:
@@ -62,7 +62,7 @@ Without real configuration, the development login modal explains that cloud savi
 - `cloud-scripts.js` owns the login/library UI, account transitions, debounced automatic saves, and browser draft recovery.
 - `cloud-client.js` scopes requests to the signed-in user. Database policies enforce ownership independently of these client filters.
 - Updates include the version read with the script. A database trigger increments the version, so stale edits and stale delete requests fail without overwriting another device's work.
-- Scripts store title, exact text, redaction amount/style, and auto-scroll speed. Raw user text is rendered with DOM text nodes.
+- Scripts store title, exact text, redaction amount/style, line selection, and auto-scroll speed. `redaction_lines` defaults to `all`; `alternate` targets even-numbered nonblank text lines, preserving the first as a cue. Raw user text is rendered with DOM text nodes.
 - Auth uses the bundled Supabase SDK with PKCE, persistent sessions, and token refresh. Google returns to the current page. Email verification uses a code, which avoids depending on a link opened in the originating browser.
 - Local drafts are separated by account; a guest draft is retained separately. Signing out removes the active session and restores the guest workspace. Account-specific draft caches remain on that browser for recovery on the next login; shared-device users should clear browser data when finished.
 - Database and OAuth admin secrets stay in their respective services. None belong in GitHub Pages assets.

@@ -1,9 +1,9 @@
-import { cloudConfig } from './cloud-config.js?v=cloud-inline-title-1';
-import { createScriptStore } from './cloud-client.js?v=cloud-inline-title-1';
+import { cloudConfig } from './cloud-config.js?v=cloud-alternate-lines-1';
+import { createScriptStore } from './cloud-client.js?v=cloud-alternate-lines-1';
 
 const PREFIX = 'line-by-line-memorize:';
-const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30 });
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30, redaction_lines: 'all' });
+const same = (a, b) => !!a && !!b && Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(key => a[key] === b[key]);
 
 export function setupCloudScripts({ app, doc = document, win = window, config = cloudConfig, createClient, autosaveDelay = 800, retryDelay = 3000 }) {
   const $ = id => doc.getElementById(id);
@@ -148,7 +148,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       store = createScriptStore(client, user.id);
       const draft = read('draft:' + user.id);
       active = draft?.active || null;
-      baseline = draft?.baseline || null;
+      baseline = draft?.baseline ? { ...draft.baseline, redaction_lines: draft.baseline.redaction_lines || 'all' } : null;
       autosaveEnabled = draft?.autosaveEnabled ?? (!!draft || importGuest);
       loadState(draft?.state || guest, draft?.state?.title || '');
       ui.libraryAccount.textContent = user.email || 'Your private script library';
@@ -193,7 +193,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       const saved = await store.save(draft, asCopy ? null : active);
       if (token !== epoch || currentWorkspace !== workspace) return false;
       active = { id: saved.id, version: saved.version };
-      baseline = { title: saved.title, body: saved.body, redaction: saved.redaction, redaction_style: saved.redaction_style || 'full', scroll_speed: saved.scroll_speed };
+      baseline = { title: saved.title, body: saved.body, redaction: saved.redaction, redaction_style: saved.redaction_style || 'full', scroll_speed: saved.scroll_speed, redaction_lines: saved.redaction_lines || 'all' };
       if (asCopy && snapshot().title === originalTitle) ui.scriptTitle.value = draft.title;
       if (!asCopy && !ui.scriptTitle.value.trim()) ui.scriptTitle.value = saved.title;
       conflict = false;
@@ -272,7 +272,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       conflict = false;
       autosaveEnabled = true;
       active = { id: row.id, version: row.version };
-      baseline = { title: row.title, body: row.body, redaction: row.redaction, redaction_style: row.redaction_style || 'full', scroll_speed: row.scroll_speed };
+      baseline = { title: row.title, body: row.body, redaction: row.redaction, redaction_style: row.redaction_style || 'full', scroll_speed: row.scroll_speed, redaction_lines: row.redaction_lines || 'all' };
       loadState(baseline, row.title);
       ui.saveCopy.hidden = true;
       persist(false);

@@ -342,3 +342,40 @@ test('a deliberate scroll cancels deferred scroll restoration after entering the
   for (const callback of f.frames.splice(0)) callback();
   assert.equal(editor.scrollTop, 250);
 });
+
+for (const style of ['full', 'half', 'first-letter']) {
+  test(`every other text line applies ${style} word redaction to lines 2 and 4, skipping blanks`, t => {
+    const body = 'First cue stays visible\n\nSecond hidden ending\n  \nThird cue stays visible\nFourth hidden ending';
+    const f = mount(t, body, style), lines = f.document.getElementById('redactionLines'), slider = f.document.getElementById('omit');
+    lines.value = 'alternate'; lines.dispatchEvent(new f.dom.window.Event('change'));
+    let rows = f.document.querySelectorAll('.practice-line');
+    for (const i of [0, 1, 3, 4]) assert.equal(rows[i].querySelector('.word-hidden'), null);
+    for (const i of [2, 5]) assert.ok(rows[i].querySelector('.word-hidden'));
+    assert.equal(f.dom.window.lineByLineApp.getState().redaction_lines, 'alternate');
+    assert.equal(f.dom.window.localStorage.getItem('line-by-line-memorize:redaction-lines'), 'alternate');
+    slider.value = slider.max; slider.dispatchEvent(new f.dom.window.Event('input'));
+    rows = f.document.querySelectorAll('.practice-line');
+    for (const i of [0, 4]) assert.equal(rows[i].querySelector('.word-hidden'), null, 'cue lines remain visible at maximum redaction');
+    for (const i of [2, 5]) {
+      const shown = rows[i].cloneNode(true);
+      for (const span of shown.querySelectorAll('.word-hidden')) span.remove();
+      assert.equal(shown.textContent, style === 'full' ? '  ' : style === 'half' ? (i === 2 ? 'Sec hid end' : 'Fou hid end') : (i === 2 ? 'S h e' : 'F h e'));
+    }
+    slider.value = '0'; slider.dispatchEvent(new f.dom.window.Event('input'));
+    assert.equal(f.document.querySelector('.word-hidden'), null);
+    lines.value = 'all'; lines.dispatchEvent(new f.dom.window.Event('change'));
+    slider.value = slider.max; slider.dispatchEvent(new f.dom.window.Event('input'));
+    assert.ok(f.document.querySelectorAll('.practice-line')[0].querySelector('.word-hidden'));
+  });
+}
+
+test('alternating line redaction uses only eligible lines for the slider range', t => {
+  const f = mount(t, 'This visible cue has many more words than the target\nOne two\nA long cue is still completely visible'), lines = f.document.getElementById('redactionLines'), slider = f.document.getElementById('omit');
+  lines.value = 'alternate'; lines.dispatchEvent(new f.dom.window.Event('change'));
+  assert.equal(slider.max, '2');
+  f.dom.window.lineByLineApp.loadState({ body: 'Only one text line\n\n ', redaction: 10, redaction_lines: 'alternate' });
+  assert.equal(slider.max, '0');
+  assert.equal(slider.disabled, true);
+  assert.equal(f.document.querySelector('.word-hidden'), null);
+  assert.equal(f.document.getElementById('amount').textContent, 'Add another text line to redact');
+});
