@@ -1,6 +1,6 @@
 # Optional accounts and cloud scripts
 
-The static app remains usable without login. Guests keep their script and practice settings on the current device. Signed-in users can save named scripts in a private cloud library and open them on other devices. Saving is explicit: local changes are retained until the user chooses **Save to cloud**. The initial release uses Google login only; email-code login stays disabled until public mail delivery is configured.
+The static app remains usable without login. Guests keep their script and practice settings on the current device. Signed-in users can save named scripts in a private cloud library and open them on other devices. Edits save on the device immediately and sync automatically to the cloud after an 800 ms pause when signed in. **New script** lives in **My scripts**, and no manual save button is needed. Failed connections retry automatically, while revision conflicts pause syncing and offer **Save a copy**. The initial release uses Google login only; email-code login stays disabled until public mail delivery is configured.
 
 ## Connected project
 
@@ -14,7 +14,7 @@ Google's audience remains External/Testing; the website's Google-only account fe
 
 ## Production feature gate
 
-The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-release-1` asset URLs so browsers load the current configuration and modules.
+The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-autosave-1` asset URLs so browsers load the current configuration and modules.
 
 `enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. A separate `cloud-bootstrap.js` checks the flag before importing any account code; versioned imports avoid pre-gate browser caches. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
 
@@ -59,7 +59,7 @@ Without real configuration, the development login modal explains that cloud savi
 
 ## Implementation details
 
-- `cloud-scripts.js` owns the login/library UI, account transitions, explicit saves, and browser draft recovery.
+- `cloud-scripts.js` owns the login/library UI, account transitions, debounced automatic saves, and browser draft recovery.
 - `cloud-client.js` scopes requests to the signed-in user. Database policies enforce ownership independently of these client filters.
 - Updates include the version read with the script. A database trigger increments the version, so stale edits and stale delete requests fail without overwriting another device's work.
 - Scripts store title, exact text, redaction amount/style, and auto-scroll speed. Raw user text is rendered with DOM text nodes.

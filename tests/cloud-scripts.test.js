@@ -7,7 +7,7 @@ import { startCloudScripts, cloudEnabledForLocation } from '../cloud-bootstrap.j
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const config = { url: 'https://example.supabase.co', publishableKey: 'public-test-key', providers: { google: true, email: true } };
-const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+const settle = () => new Promise(resolve => setTimeout(resolve, 40));
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 
 class Backend {
@@ -64,10 +64,11 @@ class Backend {
   }
 }
 
-async function mount(t, { backend = new Backend(), account = null, storage = {}, configured = true, providers = config.providers, production = false, productionEnabled = false, initialAuthError = false } = {}) {
+async function mount(t, { backend = new Backend(), account = null, storage = {}, configured = true, providers = config.providers, production = false, productionEnabled = false, initialAuthError = false, autosaveDelay = 5, retryDelay = 10000 } = {}) {
   const dom = new JSDOM(html, {
     url: production ? 'https://linebyline.online/' : 'https://linebyline.test/', runScripts: 'dangerously', pretendToBeVisual: true,
     beforeParse(win) {
+      win.scrollBy = () => {};
       win.ResizeObserver = class { observe() {} };
       win.HTMLElement.prototype.scrollIntoView = () => {};
       win.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
@@ -80,7 +81,7 @@ async function mount(t, { backend = new Backend(), account = null, storage = {},
   const client = backend.makeClient(account), app = dom.window.lineByLineApp;
   if (initialAuthError) client.auth.getSession = async () => ({ data: { session: null }, error: new Error('Authentication unavailable') });
   let clientInitializations = 0;
-  const options = { app, doc: dom.window.document, win: dom.window, config: configured ? { ...config, providers, enabledInProduction: productionEnabled } : {}, createClient: () => { clientInitializations++; return client; } };
+  const options = { autosaveDelay, retryDelay, app, doc: dom.window.document, win: dom.window, config: configured ? { ...config, providers, enabledInProduction: productionEnabled } : {}, createClient: () => { clientInitializations++; return client; } };
   const setup = production ? await startCloudScripts(options) : setupCloudScripts(options);
   await setup?.ready;
   const $ = id => dom.window.document.getElementById(id);
@@ -181,10 +182,10 @@ test('email code sign-in preserves the guest draft and provides a separate cloud
   assert.equal(f.app.getState().body, 'My guest draft\n');
   assert.equal(f.$('loginDialog').open, false);
   f.input('scriptTitle', 'Opening remarks');
-  await f.click('saveCloud');
+  await settle();
   assert.equal(f.backend.rows.size, 1);
   assert.equal([...f.backend.rows.values()][0].title, 'Opening remarks');
-  assert.equal(f.$('saveCloud').disabled, true);
+  assert.match(f.$('cloudStatus').textContent, /Saved to your cloud library/);
   f.setBody('Signed-in private changes');
   await f.click('accountButton');
   await f.click('signOut');
@@ -201,14 +202,14 @@ test('multiple devices open the same library and stale saves create copies inste
   const a = await mount(t, { backend, account: 'alice' });
   a.input('scriptTitle', 'Talk'); a.setBody('Original\n\nExact breaks');
   a.$('redactionStyle').value = 'half'; a.$('redactionStyle').dispatchEvent(new a.dom.window.Event('change'));
-  await a.click('saveCloud');
+  await settle();
   const b = await mount(t, { backend, account: 'alice' });
   await b.click('accountButton');
   b.$('libraryList').querySelector('.library-open').click(); await settle();
   assert.equal(b.app.getState().body, 'Original\n\nExact breaks');
   assert.equal(b.app.getState().redaction_style, 'half');
-  b.setBody('Edited on device B'); await b.click('saveCloud');
-  a.setBody('Edited on device A'); await a.click('saveCloud');
+  b.setBody('Edited on device B'); await settle();
+  a.setBody('Edited on device A'); await settle();
   assert.equal([...backend.rows.values()][0].body, 'Edited on device B');
   assert.equal(a.$('saveCopy').hidden, false);
   await a.click('saveCopy');
@@ -220,31 +221,37 @@ test('multiple devices open the same library and stale saves create copies inste
 test('offline failure retains the local draft across a page reload', async t => {
   const backend = new Backend(), a = await mount(t, { backend, account: 'alice' });
   a.input('scriptTitle', 'Offline talk'); a.setBody('Keep\n\nmy words');
-  backend.failSave = true; await a.click('saveCloud');
+  backend.failSave = true; await settle();
   assert.match(a.$('cloudStatus').textContent, /Could not connect/);
   assert.equal(a.app.getState().body, 'Keep\n\nmy words');
   const storage = Object.fromEntries(Object.keys(a.dom.window.localStorage).map(key => [key, a.dom.window.localStorage.getItem(key)]));
   const b = await mount(t, { backend, account: 'alice', storage });
   assert.equal(b.app.getState().body, 'Keep\n\nmy words');
-  backend.failSave = false; await b.click('saveCloud');
+  backend.failSave = false; b.dom.window.dispatchEvent(new b.dom.window.Event('online')); await settle();
   assert.equal([...backend.rows.values()][0].body, 'Keep\n\nmy words');
 });
 
-test('typing while a save is pending keeps the newer text dirty', async t => {
+test('typing during an autosave serializes the next revision without leaving the editor', async t => {
   const backend = new Backend(), f = await mount(t, { backend, account: 'alice' });
-  f.input('scriptTitle', 'Talk'); f.setBody('Version one');
-  backend.saveGate = deferred(); f.$('saveCloud').click(); await settle();
-  f.setBody('Version two'); backend.saveGate.resolve(); await settle();
-  assert.equal([...backend.rows.values()][0].body, 'Version one');
-  assert.equal(f.app.getState().body, 'Version two');
-  assert.equal(f.$('saveCloud').disabled, false);
-  backend.saveGate = null; await f.click('saveCloud');
+  backend.saveGate = deferred();
+  f.input('scriptTitle', 'Talk');
+  f.setBody('');
+  const editor = f.dom.window.document.querySelector('.inline-editor');
+  editor.value = 'Version one'; editor.dispatchEvent(new f.dom.window.Event('input'));
+  await settle();
+  editor.value = 'Version two'; editor.setSelectionRange(3, 3); editor.dispatchEvent(new f.dom.window.Event('input'));
+  backend.saveGate.resolve(); await settle();
+  assert.equal(backend.rows.size, 1);
   assert.equal([...backend.rows.values()][0].body, 'Version two');
+  assert.equal([...backend.rows.values()][0].version, 2);
+  assert.equal(f.dom.window.document.querySelector('.inline-editor'), editor);
+  assert.equal(editor.selectionStart, 3);
+  assert.match(f.$('cloudStatus').textContent, /Saved to your cloud library/);
 });
 
 test('switching accounts or signing out while a request is pending cannot leak a library', async t => {
   const backend = new Backend(), f = await mount(t, { backend, account: 'alice' });
-  f.input('scriptTitle', '<img src=x onerror=alert(1)>'); f.setBody('Private script'); await f.click('saveCloud');
+  f.input('scriptTitle', '<img src=x onerror=alert(1)>'); f.setBody('Private script'); await settle();
   await f.click('accountButton');
   assert.equal(f.$('libraryList').querySelector('img'), null);
   backend.listGate = deferred(); f.$('refreshLibrary').click(); await settle();
@@ -257,7 +264,7 @@ test('switching accounts or signing out while a request is pending cannot leak a
 
 test('delete requires confirmation, and the open text remains a local draft', async t => {
   const f = await mount(t, { account: 'alice' });
-  f.input('scriptTitle', 'Talk'); f.setBody('Words to keep locally'); await f.click('saveCloud');
+  f.input('scriptTitle', 'Talk'); f.setBody('Words to keep locally'); await settle();
   await f.click('accountButton');
   f.$('libraryList').querySelector('.library-delete').click(); await settle();
   assert.equal(f.backend.rows.size, 1);
@@ -265,4 +272,95 @@ test('delete requires confirmation, and the open text remains a local draft', as
   await f.click('deleteAccept');
   assert.equal(f.backend.rows.size, 0);
   assert.equal(f.app.getState().body, 'Words to keep locally');
+});
+
+
+test('guest text saves on each keystroke even with cloud features disabled', async t => {
+  const f = await mount(t, { production: true, storage: { 'line-by-line-memorize:script': '' } });
+  const editor = f.dom.window.document.querySelector('.inline-editor');
+  editor.value = 'Unsaved? No.\n\n  Exact spacing  ';
+  editor.dispatchEvent(new f.dom.window.Event('input'));
+  assert.equal(f.dom.window.localStorage.getItem('line-by-line-memorize:script'), editor.value);
+  const storage = Object.fromEntries(Object.keys(f.dom.window.localStorage).map(key => [key, f.dom.window.localStorage.getItem(key)]));
+  const reloaded = await mount(t, { storage, production: true });
+  assert.equal(reloaded.app.getState().body, editor.value);
+});
+
+test('the toolbar has no manual save or new button; New lives in My scripts', async t => {
+  const f = await mount(t, { account: 'alice' });
+  assert.equal(f.$('saveCloud'), null);
+  assert.equal(f.$('newScript'), null);
+  assert.ok(f.$('libraryDialog').contains(f.$('libraryNew')));
+  await settle();
+  assert.equal(f.backend.rows.size, 0, 'opening an account must not upload the example script');
+  await f.click('accountButton');
+  await f.click('libraryNew');
+  await settle();
+  assert.equal(f.backend.rows.size, 0, 'an untouched empty new script must not be uploaded');
+  f.input('scriptTitle', 'Second talk'); f.setBody('New words');
+  await settle();
+  assert.equal(f.backend.rows.size, 1);
+  assert.equal([...f.backend.rows.values()][0].title, 'Second talk');
+});
+
+test('opening the library flushes pending edits and New preserves the previous script', async t => {
+  const f = await mount(t, { account: 'alice', autosaveDelay: 60000 });
+  f.input('scriptTitle', 'First talk'); f.setBody('First words');
+  assert.equal(f.backend.rows.size, 0);
+  await f.click('accountButton');
+  assert.equal(f.$('libraryList').children.length, 1);
+  await f.click('libraryNew');
+  assert.equal(f.app.getState().body, '');
+  f.input('scriptTitle', 'Second talk'); f.setBody('Second words');
+  await f.click('accountButton');
+  assert.equal(f.backend.rows.size, 2);
+  assert.equal(f.$('libraryList').children.length, 2);
+  const first = [...f.$('libraryList').querySelectorAll('.library-open')].find(button => button.textContent.includes('First talk'));
+  first.click(); await settle();
+  assert.equal(f.app.getState().body, 'First words');
+});
+
+test('offline edits cannot be discarded by New, opening a script, or sign-out', async t => {
+  const f = await mount(t, { account: 'alice' });
+  f.input('scriptTitle', 'Saved talk'); f.setBody('Saved words'); await settle();
+  await f.click('accountButton');
+  f.backend.failSave = true;
+  f.setBody('Offline words'); await settle();
+  await f.click('libraryNew');
+  assert.equal(f.app.getState().body, 'Offline words');
+  f.$('libraryList').querySelector('.library-open').click(); await settle();
+  assert.equal(f.app.getState().body, 'Offline words');
+  await f.click('signOut');
+  assert.equal(f.$('accountButton').textContent, 'My scripts');
+  f.backend.failSave = false;
+  f.dom.window.dispatchEvent(new f.dom.window.Event('online')); await settle();
+  assert.equal([...f.backend.rows.values()][0].body, 'Offline words');
+  await f.click('signOut');
+  assert.equal(f.$('accountButton').textContent, 'Log in');
+});
+
+test('a transient failure retries automatically without another edit', async t => {
+  const f = await mount(t, { account: 'alice', retryDelay: 60 });
+  f.backend.failSave = true;
+  f.setBody('Retry these words'); await settle();
+  assert.equal(f.backend.rows.size, 0);
+  f.backend.failSave = false;
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal([...f.backend.rows.values()][0].body, 'Retry these words');
+});
+
+test('an active script can be cleared and saved as empty without creating a second script', async t => {
+  const f = await mount(t, { account: 'alice' });
+  f.input('scriptTitle', 'Talk'); f.setBody('Words'); await settle();
+  f.setBody(''); await settle();
+  assert.equal(f.backend.rows.size, 1);
+  assert.equal([...f.backend.rows.values()][0].body, '');
+});
+
+
+test('signing in automatically uploads an edited guest draft', async t => {
+  const f = await mount(t);
+  f.setBody('Guest words ready to sync');
+  f.client.auth.login('alice'); await settle();
+  assert.equal([...f.backend.rows.values()][0].body, 'Guest words ready to sync');
 });

@@ -1,17 +1,17 @@
-import { cloudConfig } from './cloud-config.js?v=cloud-release-1';
-import { createScriptStore } from './cloud-client.js?v=cloud-release-1';
+import { cloudConfig } from './cloud-config.js?v=cloud-autosave-1';
+import { createScriptStore } from './cloud-client.js?v=cloud-autosave-1';
 
 const PREFIX = 'line-by-line-memorize:';
 const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30 });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-export function setupCloudScripts({ app, doc = document, win = window, config = cloudConfig, createClient }) {
+export function setupCloudScripts({ app, doc = document, win = window, config = cloudConfig, createClient, autosaveDelay = 800, retryDelay = 3000 }) {
   const $ = id => doc.getElementById(id);
   const ui = Object.fromEntries([
     'accountButton', 'loginDialog', 'closeLogin', 'continueGuest', 'googleLogin', 'emailLogin',
     'emailAddress', 'emailSubmit', 'codeLogin', 'emailCode', 'codeSubmit', 'changeEmail',
-    'loginMessage', 'cloudUnavailable', 'loginOptions', 'cloudTools', 'scriptTitle', 'saveCloud',
-    'saveCopy', 'newScript', 'cloudStatus', 'libraryDialog', 'closeLibrary', 'libraryAccount',
+    'loginMessage', 'cloudUnavailable', 'loginOptions', 'cloudTools', 'scriptTitle',
+    'saveCopy', 'cloudStatus', 'libraryDialog', 'closeLibrary', 'libraryAccount',
     'libraryList', 'libraryMessage', 'refreshLibrary', 'libraryNew', 'libraryMore', 'signOut',
     'deleteConfirm', 'deleteName', 'deleteCancel', 'deleteAccept',
   ].map(id => [id, $(id)]));
@@ -21,7 +21,15 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     || new URLSearchParams(win.location.search).has('error') || win.location.hash.includes('error=');
   let guest = read('guest-draft') || app.getState();
   const restored = read('workspace');
-  let dirty = false;
+  let guestHasChanges = !restored?.owner && !!read('guest-draft');
+  let dirty = false, autosaveEnabled = false, conflict = false, saveTimer = null, saving = null;
+  let retryWait = retryDelay;
+  function cancelSave() { win.clearTimeout(saveTimer); saveTimer = null; }
+  function scheduleSave(delay = autosaveDelay) {
+    cancelSave();
+    if (!user || !dirty || !autosaveEnabled || conflict || busy || loading) return;
+    saveTimer = win.setTimeout(() => { saveTimer = null; save(); }, delay);
+  }
   ui.accountButton.hidden = false;
 
   function read(key) {
@@ -39,31 +47,32 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     el.dataset.error = String(error);
   }
   function notify(text, error = false) { message(ui.cloudStatus, text, error); }
-  function persist() {
+  function persist(changed = true) {
     if (suppress) return;
     const current = snapshot();
     if (user) {
-      const cached = write('draft:' + user.id, { state: current, active, baseline });
-      write('workspace', { owner: user.id });
+      if (changed) autosaveEnabled = true;
       dirty = !same(current, baseline);
-      if (!busy) notify(cached ? (dirty ? 'Changes saved on this device. Save to update your cloud copy.' : 'Saved to your cloud library.') : 'Device storage is full. Save to the cloud to keep your changes.', !cached);
+      const cached = write('draft:' + user.id, { state: current, active, baseline, autosaveEnabled });
+      write('workspace', { owner: user.id });
+      if (!busy && !conflict) notify(cached ? (dirty && autosaveEnabled ? 'Saved on this device. Syncing…' : active ? 'Saved to your cloud library.' : 'Saved on this device. Start editing to save a new cloud script.') : 'Device storage is full. Keep this page open until cloud saving finishes.', !cached);
+      scheduleSave();
     } else {
       guest = app.getState();
-      write('guest-draft', guest);
+      if (changed) guestHasChanges = true;
+      const cached = write('guest-draft', guest);
       try { win.localStorage.setItem(PREFIX + 'script', guest.body); } catch { /* Keep practicing if device storage is unavailable. */ }
+      notify(cached ? 'Saved on this device. Log in to sync across devices.' : 'Device storage is full. Keep this page open to keep your changes.', !cached);
     }
     refreshButtons();
   }
   function refreshButtons() {
-    ui.saveCloud.disabled = busy || loading || !user || !dirty;
     ui.saveCopy.disabled = busy || loading || !user;
-    ui.newScript.disabled = busy || loading;
     ui.libraryNew.disabled = busy || loading;
     ui.refreshLibrary.disabled = busy || loading;
     ui.libraryMore.disabled = busy || loading;
     ui.signOut.disabled = busy || loading;
     for (const button of ui.libraryList.querySelectorAll('button')) button.disabled = busy || loading;
-    ui.saveCloud.textContent = busy ? 'Saving…' : 'Save to cloud';
   }
   function loadState(state, title = '') {
     suppress = true;
@@ -72,29 +81,47 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     ui.scriptTitle.value = title;
     suppress = false;
   }
-  function discardOK() {
+  async function flush() {
+    const token = epoch, currentWorkspace = workspace;
     app.finishEditing();
-    return !dirty || win.confirm('This script has changes that are not saved to the cloud. Continue without saving them?');
+    persist(false);
+    cancelSave();
+    if (saving) await saving;
+    if (token !== epoch || currentWorkspace !== workspace) return false;
+    if (dirty && autosaveEnabled && !conflict) await save();
+    return token === epoch && currentWorkspace === workspace && (!dirty || !autosaveEnabled);
   }
   function closeDelete() { deleteTarget = null; ui.deleteConfirm.hidden = true; }
-  function newScript() {
-    if (busy || loading || !discardOK()) return;
+  async function newScript() {
+    if (busy || loading || !await flush()) {
+      message(ui.libraryMessage, 'Your current script has not synced yet. Keep it open until it saves, or use Save a copy if it changed on another device.', true);
+      return;
+    }
     workspace++;
+    cancelSave();
     active = null;
     baseline = null;
+    autosaveEnabled = false;
+    conflict = false;
     loadState(emptyState());
     ui.saveCopy.hidden = true;
-    persist();
+    persist(false);
     ui.libraryDialog.close();
     ui.scriptTitle.focus();
   }
   async function applySession(session) {
     const next = session?.user || null;
     if (next?.id === user?.id) return;
+    const importGuest = !user && guestHasChanges;
+    cancelSave();
     epoch++;
     workspace++;
     listEpoch++;
     busy = false;
+    saving = null;
+    conflict = false;
+    autosaveEnabled = false;
+    retryWait = retryDelay;
     loading = false;
     closeDelete();
     ui.libraryDialog.close();
@@ -121,10 +148,11 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       const draft = read('draft:' + user.id);
       active = draft?.active || null;
       baseline = draft?.baseline || null;
+      autosaveEnabled = draft?.autosaveEnabled ?? (!!draft || importGuest);
       loadState(draft?.state || guest, draft?.state?.title || '');
       ui.libraryAccount.textContent = user.email || 'Your private script library';
       ui.loginDialog.close();
-      persist();
+      persist(false);
     } else {
       store = null;
       loadState(guest);
@@ -140,35 +168,57 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     if (error?.code === 'otp_expired') return 'That login code has expired. Request a new code and try again.';
     if (error?.code === '23514') return 'This script is too long to save. Please keep it under 500,000 characters.';
     if (error?.code === 'PGRST116') return 'This script is no longer available. Refresh your library.';
-    if (error?.message?.includes('Failed to fetch') || error?.name === 'TypeError') return 'Could not connect. Your draft is still on this device. Please try again when you’re online.';
+    if (error?.message?.includes('Failed to fetch') || error?.name === 'TypeError') return 'Could not connect. Your draft is still on this device. Saving will retry automatically when you’re online.';
     return 'Something went wrong. Your draft is still on this device. Please try again.';
   }
-  async function save(asCopy = false) {
-    if (busy || loading || !user || !store) return;
-    app.finishEditing();
-    const draft = snapshot(), originalTitle = draft.title, token = epoch, currentWorkspace = workspace;
-    if (draft.body.length > 500000) { notify('Please keep scripts under 500,000 characters.', true); return; }
+  function save(asCopy = false) {
+    if (busy) return saving;
+    if (loading || !user || !store || (!asCopy && (!dirty || !autosaveEnabled || conflict))) return Promise.resolve(false);
+    cancelSave();
+    const token = epoch, currentWorkspace = workspace;
+    saving = performSave(asCopy, token, currentWorkspace);
+    return saving;
+  }
+  async function performSave(asCopy, token, currentWorkspace) {
+    // Do not finish editing here: autosave must preserve focus, selection and typing.
+    const draft = snapshot(), originalTitle = draft.title;
+    if (draft.body.length > 500000) { notify('Please keep scripts under 500,000 characters.', true); return false; }
     if (asCopy) draft.title = (draft.title.slice(0, 113) + ' (copy)').slice(0, 120);
     busy = true;
     notify('Saving to your cloud library…');
     refreshButtons();
+    let succeeded = false, retry = false;
     try {
       const saved = await store.save(draft, asCopy ? null : active);
-      if (token !== epoch || currentWorkspace !== workspace) return;
+      if (token !== epoch || currentWorkspace !== workspace) return false;
       active = { id: saved.id, version: saved.version };
       baseline = { title: saved.title, body: saved.body, redaction: saved.redaction, redaction_style: saved.redaction_style || 'full', scroll_speed: saved.scroll_speed };
       if (asCopy && snapshot().title === originalTitle) ui.scriptTitle.value = draft.title;
       if (!asCopy && !ui.scriptTitle.value.trim()) ui.scriptTitle.value = saved.title;
+      conflict = false;
+      retryWait = retryDelay;
       ui.saveCopy.hidden = true;
-      busy = false;
-      persist();
+      succeeded = true;
     } catch (error) {
-      if (token !== epoch || currentWorkspace !== workspace) return;
-      ui.saveCopy.hidden = error?.code !== 'SCRIPT_CONFLICT';
+      if (token !== epoch || currentWorkspace !== workspace) return false;
+      conflict = error?.code === 'SCRIPT_CONFLICT';
+      ui.saveCopy.hidden = !conflict;
       notify(humanError(error), true);
+      retry = !conflict && error?.code !== '23514' && error?.code !== 'PGRST116';
     } finally {
-      if (token === epoch && currentWorkspace === workspace) { busy = false; refreshButtons(); }
+      if (token === epoch && currentWorkspace === workspace) {
+        busy = false;
+        saving = null;
+        refreshButtons();
+        if (succeeded) {
+          persist(false);
+        } else if (retry) {
+          scheduleSave(retryWait);
+          retryWait = Math.min(retryWait * 2, 60000);
+        }
+      }
     }
+    return succeeded;
   }
   function renderLibrary() {
     ui.libraryList.replaceChildren();
@@ -197,15 +247,19 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       rows = more ? [...new Map([...rows, ...page].map(row => [row.id, row])).values()] : page;
       renderLibrary();
       ui.libraryMore.hidden = page.length < 50;
-      message(ui.libraryMessage, rows.length ? '' : 'Your cloud library is empty. Save your current script to find it here on every device.');
+      message(ui.libraryMessage, rows.length ? '' : 'Your cloud library is empty. Choose New script to start; your edits save automatically.');
     } catch (error) {
       if (token === epoch && request === listEpoch) message(ui.libraryMessage, humanError(error), true);
     } finally {
-      if (token === epoch && request === listEpoch) { loading = false; refreshButtons(); }
+      if (token === epoch && request === listEpoch) { loading = false; refreshButtons(); scheduleSave(); }
     }
   }
   async function openScript(id) {
-    if (!store || busy || loading || !discardOK()) return;
+    if (!store || busy || loading) return;
+    if (!await flush()) {
+      message(ui.libraryMessage, 'Your current script has not synced yet. Keep it open until it saves, or use Save a copy if it changed on another device.', true);
+      return;
+    }
     const token = epoch;
     loading = true; refreshButtons();
     message(ui.libraryMessage, 'Opening script…');
@@ -213,14 +267,17 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       const row = await store.open(id);
       if (token !== epoch) return;
       workspace++;
+      cancelSave();
+      conflict = false;
+      autosaveEnabled = true;
       active = { id: row.id, version: row.version };
       baseline = { title: row.title, body: row.body, redaction: row.redaction, redaction_style: row.redaction_style || 'full', scroll_speed: row.scroll_speed };
       loadState(baseline, row.title);
       ui.saveCopy.hidden = true;
-      persist();
+      persist(false);
       ui.libraryDialog.close();
     } catch (error) { if (token === epoch) message(ui.libraryMessage, humanError(error), true); }
-    finally { if (token === epoch) { loading = false; refreshButtons(); } }
+    finally { if (token === epoch) { loading = false; refreshButtons(); scheduleSave(); } }
   }
   async function removeScript() {
     if (!deleteTarget || !store || busy || loading) return;
@@ -230,7 +287,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       await store.remove(row.id, row.version);
       if (token !== epoch) return;
       rows = rows.filter(item => item.id !== row.id);
-      if (active?.id === row.id) { active = null; baseline = null; persist(); }
+      if (active?.id === row.id) { cancelSave(); active = null; baseline = null; autosaveEnabled = false; conflict = false; ui.saveCopy.hidden = true; persist(false); }
       closeDelete(); renderLibrary();
       message(ui.libraryMessage, 'Script deleted. A script already open in the editor stays on this device.');
     } catch (error) { if (token === epoch) message(ui.libraryMessage, humanError(error), true); }
@@ -241,7 +298,12 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   }
   ui.accountButton.addEventListener('click', () => {
     app.finishEditing();
-    if (user) { ui.libraryDialog.showModal(); list(); }
+    if (user) {
+      ui.libraryDialog.showModal();
+      // Flush the current edits first so the library includes the latest script.
+      const token = epoch;
+      flush().then(() => { if (token === epoch) list(); });
+    }
     else { message(ui.loginMessage); ui.loginDialog.showModal(); }
   });
   for (const el of [ui.closeLogin, ui.continueGuest]) el.addEventListener('click', () => ui.loginDialog.close());
@@ -288,10 +350,8 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     } catch (error) { message(ui.loginMessage, humanError(error), true); }
     finally { authBusy(false); }
   });
-  ui.scriptTitle.addEventListener('input', persist);
-  ui.saveCloud.addEventListener('click', () => save());
+  ui.scriptTitle.addEventListener('input', () => persist());
   ui.saveCopy.addEventListener('click', () => save(true));
-  ui.newScript.addEventListener('click', newScript);
   ui.libraryNew.addEventListener('click', newScript);
   ui.refreshLibrary.addEventListener('click', () => list());
   ui.libraryMore.addEventListener('click', () => list(true));
@@ -299,7 +359,10 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   ui.deleteAccept.addEventListener('click', removeScript);
   ui.signOut.addEventListener('click', async () => {
     if (!client || busy || loading) return;
-    app.finishEditing(); persist();
+    if (!await flush()) {
+      message(ui.libraryMessage, 'Your changes are saved on this device and have not synced yet. Stay signed in until they save.', true);
+      return;
+    }
     loading = true; refreshButtons();
     const token = epoch;
     try {
@@ -309,7 +372,12 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     } catch (error) { message(ui.libraryMessage, humanError(error), true); }
     finally { if (token === epoch) { loading = false; refreshButtons(); } }
   });
-  win.addEventListener('linebyline:change', persist);
+  win.addEventListener('linebyline:change', () => persist());
+  win.addEventListener('online', () => { retryWait = retryDelay; scheduleSave(0); });
+  win.addEventListener('pagehide', () => { persist(false); cancelSave(); });
+  doc.addEventListener('visibilitychange', () => {
+    if (doc.visibilityState === 'hidden') { persist(false); save(); }
+  });
   // A signed-out workspace must never inherit another account's selected script.
   if (restored?.owner) loadState(guest);
   notify('Saved on this device. Log in to save scripts across devices.');

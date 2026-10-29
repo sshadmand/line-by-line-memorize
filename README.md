@@ -8,7 +8,7 @@ Your script, current redaction step, and redaction style are saved in this brows
 
 Open `index.html` in a browser. There is no build step or dependency.
 
-- Use the range slider to redact or reveal trailing words on each line. Double-click the script in either view to edit it inline at the clicked word; edits save when you leave the text or press **Esc**. In Practice mode, editing pauses auto-scroll and **Esc** returns to practice; press **Esc** again to exit.
+- Use the range slider to redact or reveal trailing words on each line. Double-click the script in either view to edit it inline at the clicked word; edits save automatically as you type. Leave the text or press **Esc** to return to practice. In Practice mode, editing pauses auto-scroll and **Esc** returns to practice; press **Esc** again to exit.
 - First words stay visible until the final step, when the selected redaction style applies to them too.
 - Press and hold **Peak** or anywhere inside the script box to peek at redacted words in either view. Release to hide them again. Double-click still opens the editor at the clicked text.
 - Use **Practice mode** to show only the script and redactions. Hold anywhere on the script to reveal the answers temporarily. Use **Auto-scroll** in Practice mode to move down the page hands-free; while it is running, **↑** and **↓** adjust its speed, which is saved for next time. Arrow keys change redaction and scroll through lines; **⌘+** / **⌘−** change redaction (use **Ctrl** on Windows/Linux); press **Esc** or tap **×** to exit.
@@ -17,7 +17,7 @@ GitHub Pages can host this page directly from the repository.
 
 ## Optional cloud library
 
-Users can continue practicing without an account. **Log in** (beside GitHub) offers Google login when its backend is configured. Signed-in users can name and save multiple scripts, open them on another device, and manage them under **My scripts**. Practice settings travel with each saved script. Changes remain on the current device until **Save to cloud** is selected; conflicting edits offer **Save a copy**. Email-code login is also implemented and can be enabled once mail delivery is configured.
+Users can continue practicing without an account. **Log in** (beside GitHub) offers Google login when its backend is configured. Signed-in users can name and save multiple scripts, open them on another device, and manage them under **My scripts**. Practice settings travel with each saved script. Changes save automatically: immediately on the current device, and after a short pause to the cloud when signed in. **New script** is in **My scripts**. Offline changes sync when the connection returns; conflicting edits offer **Save a copy**. Email-code login is also implemented and can be enabled once mail delivery is configured.
 
 See [cloud setup](docs/CLOUD_SETUP.md) for the Supabase migration, authentication configuration, local testing, and release checks. Production hosting remains static GitHub Pages. Node dependencies are only needed to run development checks or regenerate the bundled SDK.
 
