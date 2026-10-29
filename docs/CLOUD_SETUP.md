@@ -14,7 +14,7 @@ Google's audience remains External/Testing; the website's Google-only account fe
 
 ## Production feature gate
 
-The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-autosave-1` asset URLs so browsers load the current configuration and modules.
+The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-inline-title-1` asset URLs so browsers load the current configuration and modules.
 
 `enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. A separate `cloud-bootstrap.js` checks the flag before importing any account code; versioned imports avoid pre-gate browser caches. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
 

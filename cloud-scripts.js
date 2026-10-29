@@ -1,5 +1,5 @@
-import { cloudConfig } from './cloud-config.js?v=cloud-autosave-1';
-import { createScriptStore } from './cloud-client.js?v=cloud-autosave-1';
+import { cloudConfig } from './cloud-config.js?v=cloud-inline-title-1';
+import { createScriptStore } from './cloud-client.js?v=cloud-inline-title-1';
 
 const PREFIX = 'line-by-line-memorize:';
 const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30 });
@@ -10,7 +10,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   const ui = Object.fromEntries([
     'accountButton', 'loginDialog', 'closeLogin', 'continueGuest', 'googleLogin', 'emailLogin',
     'emailAddress', 'emailSubmit', 'codeLogin', 'emailCode', 'codeSubmit', 'changeEmail',
-    'loginMessage', 'cloudUnavailable', 'loginOptions', 'cloudTools', 'scriptTitle',
+    'loginMessage', 'cloudUnavailable', 'loginOptions', 'cloudTools', 'guestScriptTitle', 'scriptTitle',
     'saveCopy', 'cloudStatus', 'libraryDialog', 'closeLibrary', 'libraryAccount',
     'libraryList', 'libraryMessage', 'refreshLibrary', 'libraryNew', 'libraryMore', 'signOut',
     'deleteConfirm', 'deleteName', 'deleteCancel', 'deleteAccept',
@@ -141,6 +141,7 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     ui.codeLogin.hidden = true;
     message(ui.loginMessage);
     ui.cloudTools.hidden = !user;
+    ui.guestScriptTitle.hidden = !!user;
     ui.accountButton.textContent = user ? 'My scripts' : 'Log in';
     ui.accountButton.setAttribute('aria-haspopup', 'dialog');
     if (user) {
@@ -351,6 +352,9 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
     finally { authBusy(false); }
   });
   ui.scriptTitle.addEventListener('input', () => persist());
+  ui.scriptTitle.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === 'Escape') { event.preventDefault(); ui.scriptTitle.blur(); }
+  });
   ui.saveCopy.addEventListener('click', () => save(true));
   ui.libraryNew.addEventListener('click', newScript);
   ui.refreshLibrary.addEventListener('click', () => list());

@@ -17,7 +17,7 @@ GitHub Pages can host this page directly from the repository.
 
 ## Optional cloud library
 
-Users can continue practicing without an account. **Log in** (beside GitHub) offers Google login when its backend is configured. Signed-in users can name and save multiple scripts, open them on another device, and manage them under **My scripts**. Practice settings travel with each saved script. Changes save automatically: immediately on the current device, and after a short pause to the cloud when signed in. **New script** is in **My scripts**. Offline changes sync when the connection returns; conflicting edits offer **Save a copy**. Email-code login is also implemented and can be enabled once mail delivery is configured.
+Users can continue practicing without an account. **Log in** (beside GitHub) offers Google login when its backend is configured. Signed-in users can click the script heading to rename it, save multiple scripts, open them on another device, and manage them under **My scripts**. Practice settings travel with each saved script. Changes save automatically: immediately on the current device, and after a short pause to the cloud when signed in. **New script** is in **My scripts**. Offline changes sync when the connection returns; conflicting edits offer **Save a copy**. Email-code login is also implemented and can be enabled once mail delivery is configured.
 
 See [cloud setup](docs/CLOUD_SETUP.md) for the Supabase migration, authentication configuration, local testing, and release checks. Production hosting remains static GitHub Pages. Node dependencies are only needed to run development checks or regenerate the bundled SDK.
 

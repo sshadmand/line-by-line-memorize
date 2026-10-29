@@ -291,6 +291,8 @@ test('the toolbar has no manual save or new button; New lives in My scripts', as
   assert.equal(f.$('saveCloud'), null);
   assert.equal(f.$('newScript'), null);
   assert.ok(f.$('libraryDialog').contains(f.$('libraryNew')));
+  assert.ok(f.$('scriptTitle').closest('.sub h2'), 'the script name replaces the static card heading');
+  assert.equal(f.$('guestScriptTitle').hidden, true);
   await settle();
   assert.equal(f.backend.rows.size, 0, 'opening an account must not upload the example script');
   await f.click('accountButton');
