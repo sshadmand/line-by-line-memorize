@@ -69,6 +69,7 @@ async function mount(t, { backend = new Backend(), account = null, storage = {},
     url: production ? 'https://linebyline.online/' : 'https://linebyline.test/', runScripts: 'dangerously', pretendToBeVisual: true,
     beforeParse(win) {
       win.scrollBy = () => {};
+      win.scrollTo = () => {};
       win.ResizeObserver = class { observe() {} };
       win.HTMLElement.prototype.scrollIntoView = () => {};
       win.HTMLDialogElement.prototype.showModal = function () { this.open = true; };

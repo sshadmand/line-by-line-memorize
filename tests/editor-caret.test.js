@@ -17,6 +17,7 @@ function mount(t, body, redactionStyle = 'full') {
       win.ResizeObserver = class { observe() {} };
       win.requestAnimationFrame = fn => { frames.push(fn); return frames.length; };
       win.scrollBy = () => {};
+      win.scrollTo = () => {};
       win.HTMLElement.prototype.setPointerCapture = () => {};
       win.localStorage.setItem('line-by-line-memorize:script', body);
       win.localStorage.setItem('line-by-line-memorize:omit', '2');
@@ -305,4 +306,39 @@ test('one word enables the slider while entering a previously empty script', t =
   slider.value = '1'; slider.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
   assert.equal(f.document.querySelector('.word-hidden').textContent, 'Hello');
   assert.equal(f.document.getElementById('amount').textContent, '1 word redacted');
+});
+
+test('leaving editing preserves the reading position without scrolling a caret line into view', t => {
+  const f = mount(t, 'First line\n\nHere is a scenario.\nFollowing line');
+  let forcedLineScrolls = 0;
+  f.dom.window.HTMLElement.prototype.scrollIntoView = () => { forcedLineScrolls++; };
+  const editor = f.click(2, 7);
+  editor.setRangeText('new ');
+  editor.dispatchEvent(new f.dom.window.Event('input'));
+  editor.blur();
+  assert.equal(forcedLineScrolls, 0);
+  assert.equal(f.document.querySelectorAll('.practice-line')[2].textContent, 'Here isnew  a scenario.');
+});
+
+test('practice blur retains the current editor scroll, including scrolling done during editing', t => {
+  const f = mount(t, Array.from({length:40}, (_, i) => 'Script line ' + i).join('\n'));
+  f.document.getElementById('toggleEditor').click();
+  const preview = f.document.getElementById('preview');
+  preview.scrollTop = 120;
+  const editor = f.click(2, 3);
+  assert.equal(editor.scrollTop, 120);
+  editor.scrollTop = 720;
+  editor.blur();
+  assert.equal(preview.scrollTop, 720);
+});
+
+test('a deliberate scroll cancels deferred scroll restoration after entering the editor', t => {
+  const f = mount(t, 'First line\nSecond line');
+  f.document.getElementById('toggleEditor').click();
+  f.document.getElementById('preview').scrollTop = 120;
+  const editor = f.click(1, 2);
+  f.dom.window.dispatchEvent(new f.dom.window.Event('wheel'));
+  editor.scrollTop = 250;
+  for (const callback of f.frames.splice(0)) callback();
+  assert.equal(editor.scrollTop, 250);
 });
