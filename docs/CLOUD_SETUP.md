@@ -10,9 +10,11 @@ Authentication's Site URL is `https://linebyline.online/`. Exact return URLs are
 
 Live verification on October 28, 2026 passed Google login, two separate named saves, opening a saved script with exact blank lines and restored redaction settings, and loading the library from an independent browser-storage origin. Live SQL checks confirmed RLS, four owner policies, no anonymous table access, and no client write access to owner/revision fields. `scripts/verify-live-rls.sql` also passed ownership and stale-revision checks on the hosted database; its fixtures were rolled back. Two small verification scripts remain in the setup account's library.
 
-Google's audience remains External/Testing while the website feature stays hidden. Basic identity-only sign-in is exempt from Google's test-user allowlist and seven-day consent expiration, as explained in [Google's audience documentation](https://support.google.com/cloud/answer/15549945?hl=en). Adding other scopes would require revisiting that configuration. A physical second device and iPad interaction have not been used for this cloud verification.
+Google's audience remains External/Testing; the website's Google-only account feature is released. Basic identity-only sign-in is exempt from Google's test-user allowlist and seven-day consent expiration, as explained in [Google's audience documentation](https://support.google.com/cloud/answer/15549945?hl=en). Adding other scopes would require revisiting that configuration. A physical second device and iPad interaction have not been used for this cloud verification.
 
 ## Production feature gate
+
+The Google-only release uses `enabledInProduction: true`. Set it to `false` to hide login and suspend cloud startup without taking down guest practice. The release uses `cloud-release-1` asset URLs so browsers load the current configuration and modules.
 
 `enabledInProduction: false` in `cloud-config.js` keeps the login button hidden on all public hosts and skips all cloud initialization, session handling, SDK loading, and remote cloud requests. A separate `cloud-bootstrap.js` checks the flag before importing any account code; versioned imports avoid pre-gate browser caches. The header button is hidden in the HTML itself, so an incomplete or failed JavaScript module cannot briefly show it. Guest practice and existing browser saves continue independently.
 

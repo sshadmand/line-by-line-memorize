@@ -1,5 +1,5 @@
-import { cloudConfig } from './cloud-config.js?v=cloud-gate-1';
-import { createScriptStore } from './cloud-client.js';
+import { cloudConfig } from './cloud-config.js?v=cloud-release-1';
+import { createScriptStore } from './cloud-client.js?v=cloud-release-1';
 
 const PREFIX = 'line-by-line-memorize:';
 const emptyState = () => ({ body: '', redaction: 0, redaction_style: 'full', scroll_speed: 30 });
@@ -17,6 +17,8 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
   ].map(id => [id, $(id)]));
   let client, store, user, active = null, baseline = null, epoch = 0, workspace = 0;
   let busy = false, loading = false, suppress = false, listEpoch = 0, rows = [], deleteTarget;
+  const loginReturn = new URLSearchParams(win.location.search).has('code')
+    || new URLSearchParams(win.location.search).has('error') || win.location.hash.includes('error=');
   let guest = read('guest-draft') || app.getState();
   const restored = read('workspace');
   let dirty = false;
@@ -335,7 +337,9 @@ export function setupCloudScripts({ app, doc = document, win = window, config = 
       if (sequence === authSequence) await applySession(data.session);
     } catch (error) {
       message(ui.loginMessage, humanError(error), true);
-      ui.loginDialog.showModal();
+      if (!client) { ui.loginOptions.hidden = true; ui.cloudUnavailable.hidden = false; }
+      if (loginReturn) ui.loginDialog.showModal();
+      else notify('Cloud login is temporarily unavailable. You can keep practicing on this device.', true);
     } finally { authBusy(false); }
   })();
   return { ready };

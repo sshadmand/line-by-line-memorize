@@ -64,7 +64,7 @@ class Backend {
   }
 }
 
-async function mount(t, { backend = new Backend(), account = null, storage = {}, configured = true, providers = config.providers, production = false } = {}) {
+async function mount(t, { backend = new Backend(), account = null, storage = {}, configured = true, providers = config.providers, production = false, productionEnabled = false, initialAuthError = false } = {}) {
   const dom = new JSDOM(html, {
     url: production ? 'https://linebyline.online/' : 'https://linebyline.test/', runScripts: 'dangerously', pretendToBeVisual: true,
     beforeParse(win) {
@@ -78,8 +78,9 @@ async function mount(t, { backend = new Backend(), account = null, storage = {},
   });
   t.after(() => dom.window.close());
   const client = backend.makeClient(account), app = dom.window.lineByLineApp;
+  if (initialAuthError) client.auth.getSession = async () => ({ data: { session: null }, error: new Error('Authentication unavailable') });
   let clientInitializations = 0;
-  const options = { app, doc: dom.window.document, win: dom.window, config: configured ? { ...config, providers } : {}, createClient: () => { clientInitializations++; return client; } };
+  const options = { app, doc: dom.window.document, win: dom.window, config: configured ? { ...config, providers, enabledInProduction: productionEnabled } : {}, createClient: () => { clientInitializations++; return client; } };
   const setup = production ? await startCloudScripts(options) : setupCloudScripts(options);
   await setup?.ready;
   const $ = id => dom.window.document.getElementById(id);
@@ -110,6 +111,30 @@ test('cloud initialization is available locally and requires explicit enablement
     assert.equal(cloudEnabledForLocation({ enabledInProduction: false }, { hostname }), false);
     assert.equal(cloudEnabledForLocation({ enabledInProduction: true }, { hostname }), true);
   }
+});
+
+test('the enabled production release offers login without requiring a guest to sign in', async t => {
+  const f = await mount(t, { production: true, productionEnabled: true, providers: { google: true, email: false } });
+  assert.equal(f.started, true);
+  assert.equal(f.clientInitializations, 1);
+  assert.equal(f.$('accountButton').hidden, false);
+  assert.equal(f.$('cloudTools').hidden, true);
+  assert.equal(f.$('loginDialog').open, false);
+  await f.click('accountButton');
+  assert.equal(f.$('loginDialog').open, true);
+  assert.equal(f.$('emailLogin').hidden, true);
+  await f.click('continueGuest');
+  await f.click('toggleEditor');
+  assert.equal(f.dom.window.document.body.classList.contains('practice-mode'), true);
+});
+
+test('an authentication startup outage does not open a modal or interrupt guest practice', async t => {
+  const f = await mount(t, { production: true, productionEnabled: true, initialAuthError: true, storage: { 'line-by-line-memorize:script': 'My existing guest script' } });
+  assert.equal(f.$('loginDialog').open, false);
+  assert.equal(f.app.getState().body, 'My existing guest script');
+  assert.match(f.$('cloudStatus').textContent, /temporarily unavailable/);
+  await f.click('toggleEditor');
+  assert.equal(f.dom.window.document.body.classList.contains('practice-mode'), true);
 });
 
 test('guest practice, exact whitespace, and modal keyboard isolation need no cloud configuration', async t => {
