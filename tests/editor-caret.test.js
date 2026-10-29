@@ -293,3 +293,16 @@ test('loading another script replaces an empty editor', t => {
   assert.equal(f.document.querySelector('.inline-editor'), null);
   assert.equal(f.document.getElementById('preview').textContent, 'Loaded script!');
 });
+
+
+test('one word enables the slider while entering a previously empty script', t => {
+  const f = mount(t, ''), editor = f.document.querySelector('.inline-editor'), slider = f.document.getElementById('omit');
+  editor.value = 'Hello!';
+  editor.dispatchEvent(new f.dom.window.Event('input'));
+  assert.equal(slider.disabled, false);
+  assert.equal(slider.max, '1');
+  editor.focus(); editor.blur();
+  slider.value = '1'; slider.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
+  assert.equal(f.document.querySelector('.word-hidden').textContent, 'Hello');
+  assert.equal(f.document.getElementById('amount').textContent, '1 word redacted');
+});

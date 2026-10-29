@@ -64,7 +64,7 @@ one step at a time.</textarea>
 <script>
 (()=>{'use strict';const script=document.getElementById('script'),slider=document.getElementById('omit'),amount=document.getElementById('amount'),redactionStyle=document.getElementById('redactionStyle'),preview=document.getElementById('preview'),reveal=document.getElementById('reveal'),toggleEditor=document.getElementById('toggleEditor'),exitPractice=document.getElementById('exitPractice'),autoScroll=document.getElementById('autoScroll');let peeking=false,previewPeekPointer=null,editing=false,inlineEditor=null,editorViewportCleanup=null,editorPreviewScrollTop=0,practiceLine=0,autoScrolling=false,autoScrollFrame=0,autoScrollLast=0,autoScrollRemainder=0,autoScrollSpeed=30;const AUTO_SCROLL_MIN=10,AUTO_SCROLL_MAX=120,AUTO_SCROLL_STEP=10,wordPattern=/\S+/g;try{const savedScript=localStorage.getItem('line-by-line-memorize:script'),savedOmit=localStorage.getItem('line-by-line-memorize:omit'),savedRedactionStyle=localStorage.getItem('line-by-line-memorize:redaction-style'),savedScrollSpeed=Number(localStorage.getItem('line-by-line-memorize:auto-scroll-speed'));if(savedScript!==null)script.value=savedScript;slider.max=String(maxWords());if(savedOmit!==null&&Number.isInteger(Number(savedOmit))&&Number(savedOmit)>=0)slider.value=String(Math.min(Number(savedOmit),maxWords()));if(['full','half','first-letter'].includes(savedRedactionStyle))redactionStyle.value=savedRedactionStyle;if(Number.isFinite(savedScrollSpeed)&&savedScrollSpeed>=AUTO_SCROLL_MIN&&savedScrollSpeed<=AUTO_SCROLL_MAX)autoScrollSpeed=savedScrollSpeed}catch{}
 function lineWords(line){return [...line.matchAll(wordPattern)].filter(match=>/[^\p{P}]/u.test(match[0]))}
-function maxWords(){return Math.max(0,...script.value.split(/\r?\n/).map(line=>lineWords(line).length))}
+function maxWords(text=script.value){return Math.max(0,...text.split(/\r?\n/).map(line=>lineWords(line).length))}
 function appendRedactedWord(row,word){
 const chars=Array.from(word.replace(/\p{P}/gu,''));
 let shownCount=redactionStyle.value==='half'?Math.ceil(chars.length/2):redactionStyle.value==='first-letter'?1:0;
@@ -77,7 +77,7 @@ const hidden=letters.slice(Array.from(shown).length).join('');
 if(hidden){const span=document.createElement('span');span.className='word-hidden'+(peeking?' revealed':'');span.textContent=hidden;span.setAttribute('aria-label',peeking?hidden:'hidden text');row.append(span)}
 }
 }
-function updateRedactionControl(text,n=Number(slider.value)){const empty=!text.trim();slider.disabled=empty;amount.textContent=empty?'Waiting for a script':n+' '+(n===1?'word':'words')+' redacted'}
+function updateRedactionControl(text,n=Number(slider.value)){const empty=!text.trim(),max=maxWords(text);slider.max=String(max);n=Math.min(n,max);slider.value=String(n);slider.disabled=empty;amount.textContent=empty?'Waiting for a script':n+' '+(n===1?'word':'words')+' redacted'}
 function render(){
 const max=maxWords(),n=Math.min(Number(slider.value),max);slider.max=String(max);slider.value=String(n);
 try{localStorage.setItem('line-by-line-memorize:omit',String(n))}catch{}
