@@ -248,7 +248,7 @@ test('standalone punctuation stays visible without adding redaction steps', t =>
   for (const hidden of shown.querySelectorAll('.word-hidden')) hidden.remove();
   assert.equal(shown.textContent, 'First — second ... !');
   assert.equal(preview.querySelector('.word-hidden').textContent, 'third');
-  assert.equal(f.document.getElementById('amount').textContent, '1 word redacted');
+  assert.equal(f.document.getElementById('amount').textContent, '1 redacted');
 });
 
 test('punctuation-only lines require no redaction and never show a peek button', t => {
@@ -305,7 +305,7 @@ test('one word enables the slider while entering a previously empty script', t =
   editor.focus(); editor.blur();
   slider.value = '1'; slider.dispatchEvent(new f.dom.window.Event('input', { bubbles: true }));
   assert.equal(f.document.querySelector('.word-hidden').textContent, 'Hello');
-  assert.equal(f.document.getElementById('amount').textContent, '1 word redacted');
+  assert.equal(f.document.getElementById('amount').textContent, '1 redacted');
 });
 
 test('leaving editing preserves the reading position without scrolling a caret line into view', t => {
